@@ -8,41 +8,111 @@ pub trait Encode: Sized {
     fn encode(&self, buf: &mut Vec<u8>);
 }
 
-fn take<const N: usize>(buf: &[u8]) -> Result<[u8; N], Box<dyn Error>> {
-    if buf.len() < N {
-        return Err("not enough bytes".into());
-    }
-    let mut bytes = [0u8; N];
-    bytes.copy_from_slice(&buf[..N]);
-    Ok(bytes)
-}
-
 fn pad_len(len: usize) -> usize {
     (4 - (len % 4)) % 4
 }
 
-macro_rules! impl_fixed {
-    ($ty:ty, $n:expr) => {
-        impl Encode for $ty {
-            fn encode(&self, buf: &mut Vec<u8>) {
-                buf.extend_from_slice(&self.to_be_bytes());
-            }
-        }
-
-        impl Decode for $ty {
-            fn decode(buf: &[u8]) -> Result<Self, Box<dyn Error>> {
-                Ok(<$ty>::from_be_bytes(take::<$n>(buf)?))
-            }
-        }
-    };
+impl Encode for u32 {
+    fn encode(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(&self.to_be_bytes());
+    }
 }
 
-impl_fixed!(u32, 4);
-impl_fixed!(i32, 4);
-impl_fixed!(u64, 8);
-impl_fixed!(i64, 8);
-impl_fixed!(f32, 4);
-impl_fixed!(f64, 8);
+impl Decode for u32 {
+    fn decode(buf: &[u8]) -> Result<Self, Box<dyn Error>> {
+        if buf.len() < 4 {
+            return Err("not enough bytes".into());
+        }
+        let bytes = [buf[0], buf[1], buf[2], buf[3]];
+        Ok(u32::from_be_bytes(bytes))
+    }
+}
+
+impl Encode for i32 {
+    fn encode(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(&self.to_be_bytes());
+    }
+}
+
+impl Decode for i32 {
+    fn decode(buf: &[u8]) -> Result<Self, Box<dyn Error>> {
+        if buf.len() < 4 {
+            return Err("not enough bytes".into());
+        }
+        let bytes = [buf[0], buf[1], buf[2], buf[3]];
+        Ok(i32::from_be_bytes(bytes))
+    }
+}
+
+impl Encode for u64 {
+    fn encode(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(&self.to_be_bytes());
+    }
+}
+
+impl Decode for u64 {
+    fn decode(buf: &[u8]) -> Result<Self, Box<dyn Error>> {
+        if buf.len() < 8 {
+            return Err("not enough bytes".into());
+        }
+        let bytes = [
+            buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
+        ];
+        Ok(u64::from_be_bytes(bytes))
+    }
+}
+
+impl Encode for i64 {
+    fn encode(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(&self.to_be_bytes());
+    }
+}
+
+impl Decode for i64 {
+    fn decode(buf: &[u8]) -> Result<Self, Box<dyn Error>> {
+        if buf.len() < 8 {
+            return Err("not enough bytes".into());
+        }
+        let bytes = [
+            buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
+        ];
+        Ok(i64::from_be_bytes(bytes))
+    }
+}
+
+impl Encode for f32 {
+    fn encode(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(&self.to_be_bytes());
+    }
+}
+
+impl Decode for f32 {
+    fn decode(buf: &[u8]) -> Result<Self, Box<dyn Error>> {
+        if buf.len() < 4 {
+            return Err("not enough bytes".into());
+        }
+        let bytes = [buf[0], buf[1], buf[2], buf[3]];
+        Ok(f32::from_be_bytes(bytes))
+    }
+}
+
+impl Encode for f64 {
+    fn encode(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(&self.to_be_bytes());
+    }
+}
+
+impl Decode for f64 {
+    fn decode(buf: &[u8]) -> Result<Self, Box<dyn Error>> {
+        if buf.len() < 8 {
+            return Err("not enough bytes".into());
+        }
+        let bytes = [
+            buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
+        ];
+        Ok(f64::from_be_bytes(bytes))
+    }
+}
 
 impl Encode for bool {
     fn encode(&self, buf: &mut Vec<u8>) {
@@ -70,31 +140,13 @@ impl Decode for () {
     }
 }
 
-impl<const N: usize> Encode for [u8; N] {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        buf.extend_from_slice(&self[..]);
-        buf.resize(buf.len() + pad_len(N), 0);
-    }
-}
-
-impl<const N: usize> Decode for [u8; N] {
-    fn decode(buf: &[u8]) -> Result<Self, Box<dyn Error>> {
-        let pad = pad_len(N);
-        if buf.len() < N + pad {
-            return Err("not enough bytes".into());
-        }
-        let mut arr = [0u8; N];
-        arr.copy_from_slice(&buf[..N]);
-        Ok(arr)
-    }
-}
-
 impl Encode for Vec<u8> {
     fn encode(&self, buf: &mut Vec<u8>) {
-        let len = self.len() as u32;
-        len.encode(buf);
+        (self.len() as u32).encode(buf);
         buf.extend_from_slice(self);
-        buf.resize(buf.len() + pad_len(self.len()), 0);
+        for _ in 0..pad_len(self.len()) {
+            buf.push(0);
+        }
     }
 }
 
@@ -114,7 +166,9 @@ impl Encode for String {
         let bytes = self.as_bytes();
         (bytes.len() as u32).encode(buf);
         buf.extend_from_slice(bytes);
-        buf.resize(buf.len() + pad_len(bytes.len()), 0);
+        for _ in 0..pad_len(bytes.len()) {
+            buf.push(0);
+        }
     }
 }
 
@@ -124,3 +178,24 @@ impl Decode for String {
     }
 }
 
+
+
+impl Encode for [u8; 32] {
+    fn encode(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(self);
+        for _ in 0..pad_len(32) {
+            buf.push(0);
+        }
+    }
+}
+
+impl Decode for [u8; 32] {
+    fn decode(buf: &[u8]) -> Result<Self, Box<dyn Error>> {
+        if buf.len() < 32 {
+            return Err("not enough bytes".into());
+        }
+        let mut arr = [0u8; 32];
+        arr.copy_from_slice(&buf[..32]);
+        Ok(arr)
+    }
+}
