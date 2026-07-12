@@ -1,4 +1,9 @@
-mod xdr;
+mod rpc;
+
+
+
+
+
 
 #[tokio::main]
 pub async fn main() {
