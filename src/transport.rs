@@ -8,7 +8,9 @@ use crate::rpc::msg::{self, garbage_args, proc_unavail, prog_unavail, read_recor
 use crate::rpc::program::{DispatchResult, RpcProgram};
 use crate::rpc::xdr::XdrEncoder;
 
-pub async fn serve(handler: Arc<dyn RpcProgram>, bind_addr: &str) -> anyhow::Result<()> {
+use crate::Config;
+
+pub async fn serve(cfg_ptr: Box<Config>, handler: Arc<dyn RpcProgram>, bind_addr: &str) -> anyhow::Result<()> {
     let socket = Arc::new(UdpSocket::bind(bind_addr).await?);
     let mut buf = vec![0u8; 65536];
 
@@ -16,6 +18,7 @@ pub async fn serve(handler: Arc<dyn RpcProgram>, bind_addr: &str) -> anyhow::Res
 
     loop {
         buf.resize(65536, 0);
+        
         let (n, src) = match socket.recv_from(&mut buf).await {
             Ok(v) => v,
             Err(e) => {
@@ -27,9 +30,10 @@ pub async fn serve(handler: Arc<dyn RpcProgram>, bind_addr: &str) -> anyhow::Res
         let payload = buf[..n].to_vec();
         let handler = Arc::clone(&handler);
         let socket = Arc::clone(&socket);
+        let cfg = cfg_ptr.clone();
 
         tokio::spawn(async move {
-            process(payload, src, handler, socket).await;
+            process(payload, src, Box::clone(cfg_ptr), handler, socket).await;
         });
     }
 }
@@ -39,11 +43,11 @@ pub async fn serve(handler: Arc<dyn RpcProgram>, bind_addr: &str) -> anyhow::Res
 async fn process(
     payload: Vec<u8>,
     src: SocketAddr,
+    cfg: Box<Config>,
     handler: Arc<dyn RpcProgram>,
     socket: Arc<UdpSocket>,
 ) {
     let xid_hint = peek_xid(&payload);
-
     let record = match read_record(&mut Cursor::new(&payload)) {
         Ok(r) => r,
         Err(e) => {
