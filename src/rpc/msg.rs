@@ -1,6 +1,9 @@
 use super::xdr::{get_opaque_var, get_string, get_u32, get_u32_array, RPC_VERSION, XdrEncoder, XdrError};
 use std::io::{Read, Write};
 
+/* uses the numbers on enums specified in 
+*  RFC 5531 and is obviously below nfs */
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MsgType {
     Call = 0,

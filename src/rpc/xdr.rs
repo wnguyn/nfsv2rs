@@ -124,6 +124,8 @@ pub fn get_u32_array(buf: &mut &[u8]) -> Result<Vec<u32>, XdrError> {
     Ok(out)
 }
 
+
+// WRAP THE HECKIN PRIMATIVES IN LITTLE ENDIAN 4 BYTES!!!!
 pub struct XdrEncoder {
     buf: Vec<u8>,
 }
@@ -175,6 +177,9 @@ impl XdrEncoder {
         for &item in v {
             self.put_u32(item);
         }
+    }
+    pub fn put_raw(&mut self, v: &[u8]) {
+        self.buf.extend_from_slice(v);
     }
 
     pub fn into_bytes(self) -> Vec<u8> {

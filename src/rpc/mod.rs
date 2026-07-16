@@ -1,3 +1,3 @@
-mod xdr;
-mod msg;
-mod program;
+pub mod xdr;
+pub mod msg;
+pub mod program;
