@@ -5,6 +5,13 @@ mod fs;
 
 use std::path::PathBuf;
 
+/*
+    Ancient Mesopotanian Bell Labs (it isnt actually bell labs)
+    Documentation
+    https://datatracker.ietf.org/doc/html/rfc1014 //xdr 
+    https://datatracker.ietf.org/doc/html/rfc1057 //rpc
+    https://datatracker.ietf.org/doc/html/rfc1094 //nfs
+*/
 
 const ROOT: &'static str = "/home/will/mnt";
 
@@ -35,9 +42,10 @@ impl Clone for Config {
 #[tokio::main]
 pub async fn main() -> anyhow::Result<()> {
 
-    let handler = handle::make_handler("/export")?;
+    let nfs_handler = handle::make_handler("/export")?;
+    let mount_handler = fs::make_mount_handler("/export")?;
     tracing::info!("NFSv2 server starting, export root: /export");
     let cfg_ptr = Box::new(Config::new(ROOT));
 
-    transport::serve(cfg_ptr, handler, "0.0.0.0:2049").await
+    transport::serve(cfg_ptr, nfs_handler, mount_handler, "0.0.0.0:2049").await
 }

@@ -1,18 +1,12 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::rpc::msg::OpaqueAuth;
+use crate::rpc::msg::Auth;
 use crate::rpc::program::{DispatchResult, RpcProgram};
 use crate::rpc::xdr::{get_string, XdrEncoder};
 
 pub const MOUNT_PROGRAM: u32 = 100005;
 pub const MOUNT_VERSION: u32 = 1;
-
-
-
-
-
-
 
 pub fn path_to_handle(path: &PathBuf) -> [u8; 32] {
     use std::os::unix::ffi::OsStrExt;
@@ -29,18 +23,22 @@ pub fn handle_to_path(handle: [u8; 32]) -> PathBuf {
     PathBuf::from(std::ffi::OsStr::from_bytes(&handle[..end]))
 }
 
-
-
 #[derive(Debug, Clone)]
 pub struct MountHandler {
     export_root: PathBuf,
 }
 
 impl MountHandler {
-    // construct on your own 
+    pub fn new(export_root: impl Into<PathBuf>) -> anyhow::Result<Self> {
+        let export_root = export_root.into();
+        if !export_root.is_dir() {
+            anyhow::bail!("export root is not a directory: {}", export_root.display());
+        }
+        Ok(Self {
+            export_root: export_root.canonicalize()?,
+        })
+    }
 }
-
-
 
 impl RpcProgram for MountHandler {
     fn program(&self) -> u32 {
@@ -55,8 +53,8 @@ impl RpcProgram for MountHandler {
         &self,
         vers: u32,
         proc: u32,
-        _cred: &OpaqueAuth,
-        _verf: &OpaqueAuth,
+        _cred: &Auth,
+        _verf: &Auth,
         args: &[u8],
     ) -> DispatchResult {
         if vers != MOUNT_VERSION {
@@ -66,6 +64,7 @@ impl RpcProgram for MountHandler {
             };
         }
 
+        // HECKING RFC 1094 2.3.1
         match proc {
             0 => DispatchResult::Success(Vec::new()),
             1 => {
@@ -75,7 +74,8 @@ impl RpcProgram for MountHandler {
                     Err(_) => return DispatchResult::GarbageArgs,
                 };
 
-                let resolved = match self.export_root
+                let resolved = match self
+                    .export_root
                     .join(path_str.trim_start_matches('/'))
                     .canonicalize()
                 {
@@ -104,3 +104,6 @@ impl RpcProgram for MountHandler {
     }
 }
 
+pub fn make_mount_handler(export_root: impl Into<PathBuf>) -> anyhow::Result<Arc<dyn RpcProgram>> {
+    Ok(Arc::new(MountHandler::new(export_root)?))
+}

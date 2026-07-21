@@ -1,3 +1,6 @@
+// actual udp network implementation
+
+
 use std::io::Cursor;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -10,7 +13,7 @@ use crate::rpc::xdr::XdrEncoder;
 
 use crate::Config;
 
-pub async fn serve(cfg_ptr: Box<Config>, handler: Arc<dyn RpcProgram>, bind_addr: &str) -> anyhow::Result<()> {
+pub async fn serve(cfg_ptr: Box<Config>, nfs: Arc<dyn RpcProgram>, mount: Arc<dyn RpcProgram>, bind_addr: &str) -> anyhow::Result<()> {
     let socket = Arc::new(UdpSocket::bind(bind_addr).await?);
     let mut buf = vec![0u8; 65536];
 
@@ -28,12 +31,13 @@ pub async fn serve(cfg_ptr: Box<Config>, handler: Arc<dyn RpcProgram>, bind_addr
         };
 
         let payload = buf[..n].to_vec();
-        let handler = Arc::clone(&handler);
+        let nfs = Arc::clone(&nfs);
+        let mount = Arc::clone(&mount);
         let socket = Arc::clone(&socket);
         let cfg = cfg_ptr.clone();
 
         tokio::spawn(async move {
-            process(payload, src, Box::clone(cfg_ptr), handler, socket).await;
+            process(payload, src, cfg, nfs, mount, socket).await;
         });
     }
 }
@@ -44,7 +48,8 @@ async fn process(
     payload: Vec<u8>,
     src: SocketAddr,
     cfg: Box<Config>,
-    handler: Arc<dyn RpcProgram>,
+    nfs: Arc<dyn RpcProgram>,
+    mount: Arc<dyn RpcProgram>,
     socket: Arc<UdpSocket>,
 ) {
     let xid_hint = peek_xid(&payload);
@@ -75,10 +80,14 @@ async fn process(
         call.body.prog, call.body.vers, call.body.proc
     );
 
-    if call.body.prog != handler.program() {
-        reply(&socket, src, prog_unavail(xid).into_bytes()).await;
-        return;
-    }
+    let handler: Arc<dyn RpcProgram> = match call.body.prog {
+        crate::rpc::program::NFS_PROGRAM => Arc::clone(&nfs),
+        crate::fs::MOUNT_PROGRAM => Arc::clone(&mount),
+        _ => {
+            reply(&socket, src, prog_unavail(xid).into_bytes()).await;
+            return;
+        }
+    };
 
     let (lo, hi) = handler.version_range();
     if call.body.vers < lo || call.body.vers > hi {
@@ -86,7 +95,7 @@ async fn process(
         msg::encode_header(
             xid,
             &ReplyBody::Accepted {
-                verf: msg::OpaqueAuth::None,
+                verf: msg::Auth::None,
                 stat: msg::AcceptStat::ProgMismatch,
                 mismatch_info: Some((lo, hi)),
             },
@@ -126,7 +135,7 @@ async fn process(
             msg::encode_header(
                 xid,
                 &ReplyBody::Accepted {
-                    verf: msg::OpaqueAuth::None,
+                    verf: msg::Auth::None,
                     stat: msg::AcceptStat::ProgMismatch,
                     mismatch_info: Some((low, high)),
                 },
