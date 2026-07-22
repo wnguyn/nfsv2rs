@@ -14,7 +14,9 @@ use crate::rpc::xdr::XdrEncoder;
 use crate::Config;
 use std::rc::Rc;
 use std::sync::Mutex;
-
+/* fix this mess later
+ *
+ *
 pub async fn process(
     payload: [u8; 65536], 
     cfg: Rc<Config>,
@@ -134,4 +136,4 @@ async fn reply(socket: &UdpSocket, dst: SocketAddr, msg: Vec<u8>) {
     if let Err(e) = socket.send_to(&framed, dst).await {
         tracing::debug!("send_to {dst} failed: {e}");
     }
-}
+}*/
