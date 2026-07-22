@@ -12,46 +12,15 @@ use crate::rpc::program::{DispatchResult, RpcProgram};
 use crate::rpc::xdr::XdrEncoder;
 
 use crate::Config;
+use std::rc::Rc;
+use std::sync::Mutex;
 
-pub async fn serve(cfg_ptr: Box<Config>, nfs: Arc<dyn RpcProgram>, mount: Arc<dyn RpcProgram>, bind_addr: &str) -> anyhow::Result<()> {
-    let socket = Arc::new(UdpSocket::bind(bind_addr).await?);
-    let mut buf = vec![0u8; 65536];
-
-    tracing::info!("listening on {}", bind_addr);
-
-    loop {
-        buf.resize(65536, 0);
-        
-        let (n, src) = match socket.recv_from(&mut buf).await {
-            Ok(v) => v,
-            Err(e) => {
-                tracing::error!("recv_from failed: {e}");
-                continue;
-            }
-        };
-
-        let payload = buf[..n].to_vec();
-        let nfs = Arc::clone(&nfs);
-        let mount = Arc::clone(&mount);
-        let socket = Arc::clone(&socket);
-        let cfg = cfg_ptr.clone();
-
-        tokio::spawn(async move {
-            process(payload, src, cfg, nfs, mount, socket).await;
-        });
-    }
-}
-
-
-// tldr; strips framing -> decode -> route by program number -> check version
-async fn process(
-    payload: Vec<u8>,
-    src: SocketAddr,
-    cfg: Box<Config>,
-    nfs: Arc<dyn RpcProgram>,
-    mount: Arc<dyn RpcProgram>,
-    socket: Arc<UdpSocket>,
+pub async fn process(
+    payload: [u8; 65536], 
+    cfg: Rc<Config>,
+    socket: Rc<Mutex<UdpSocket>>,
 ) {
+    // check auth by XID (rc1057)
     let xid_hint = peek_xid(&payload);
     let record = match read_record(&mut Cursor::new(&payload)) {
         Ok(r) => r,

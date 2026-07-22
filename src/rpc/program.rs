@@ -27,6 +27,7 @@ pub trait RpcProgram: Send + Sync {
 pub const NFS_PROGRAM: u32 = 100003;
 pub const NFS_VERSION: u32 = 2;
 
+// this is RFC 1094 2.2 Server Procedures
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
 pub enum NfsProc {
@@ -49,7 +50,7 @@ pub enum NfsProc {
     ReadDir = 16,
     StatFs = 17,
 }
-
+// Return types from ADT
 impl NfsProc {
     pub fn from_u32(v: u32) -> Option<Self> {
         match v {
