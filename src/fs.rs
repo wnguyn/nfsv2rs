@@ -1,10 +1,11 @@
-use std::path::PathBuf;
-use std::sync::Arc;
-
 use crate::rpc::program::{DispatchResult, RpcProgram};
 use crate::rpc::xdr::{XdrDecoder, XdrEncoder};
 use crate::OpaqueAuth;
+use std::path::PathBuf;
+use std::rc::Rc;
+use std::sync::Arc;
 
+// RFC 1054
 pub const MOUNT_PROGRAM: u32 = 100005;
 pub const MOUNT_VERSION: u32 = 1;
 
@@ -17,6 +18,7 @@ pub fn path_to_handle(path: &PathBuf) -> [u8; 32] {
     handle
 }
 
+// max 32 bytes handle but edge cases don't really mater IMO
 pub fn handle_to_path(handle: [u8; 32]) -> PathBuf {
     use std::os::unix::ffi::OsStrExt;
     let end = handle.iter().position(|&b| b == 0).unwrap_or(32);

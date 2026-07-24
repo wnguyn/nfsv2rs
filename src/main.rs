@@ -6,6 +6,7 @@ use parking_lot::Mutex;
 use std::net::UdpSocket;
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use rpc::xdr::XdrDecoder;
 
@@ -47,7 +48,6 @@ impl Clone for Config {
 const RPC_VERSION: u32 = 2;
 const CALL: u32 = 0;
 const MAX_AUTH_LEN: u32 = 400;
-
 #[derive(Debug)]
 pub enum MsgError {
     Xdr,
@@ -73,7 +73,6 @@ pub struct RpcCall<'a> {
     pub verf: OpaqueAuth<'a>,
     pub args: &'a [u8],
 }
-
 impl<'a> RpcCall<'a> {
     pub fn new(buf: &'a [u8]) -> Result<Self, MsgError> {
         let mut d = XdrDecoder::new(buf);
@@ -129,15 +128,15 @@ impl<'a> RpcCall<'a> {
     }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing::info!("NFSv2 server starting, export root: {}", ROOT);
+fn main() -> anyhow::Result<()> {
+    tracing::info!("NFSv2 server starting!!!!!, export root: {}", ROOT);
     let cfg_ptr = Rc::new(Config::new(ROOT));
 
+    // 2^16 maximum
     let buf: [u8; 65536] = [0; 65536];
 
     let listener = Rc::new(Mutex::new(UdpSocket::bind("127.0.0.1:2049")?));
     handle(cfg_ptr.clone(), listener.clone(), buf)?;
-    eprintln!("ya stuff crashed man");
     Ok(())
 }
 
@@ -147,18 +146,12 @@ fn handle(
     _cfg: Rc<Config>,
     socket: Rc<Mutex<UdpSocket>>,
     mut buf: [u8; 65536],
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> anyhow::Result<()> {
+    let (amt, src) = socket.lock().recv_from(&mut buf)?;
+    let datagram = &buf[..amt]; // slice to datagram; past amt is stale zeros
     loop {
-        let (amt, src) = socket.lock().recv_from(&mut buf)?;
-        let datagram = &buf[..amt]; // slice to datagram; past amt is stale zeros
-
-        let call = match RpcCall::new(datagram) {
-            Ok(c) => c,
-            Err(e) => {
-                tracing::debug!("dropping garbage from {src}: {e:?}");
-                continue; // rfc 1057: silent drop is legal
-            }
-        };
+        if let Ok(call) = RpcCall::new(datagram) {
+            todo!();
+        }
     }
-    Ok(())
 }
