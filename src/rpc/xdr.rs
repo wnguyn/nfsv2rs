@@ -13,8 +13,8 @@ pub struct XdrDecoder<'a> {
 
 #[derive(Debug)]
 pub enum XdrError {
-    Foo,
     Eof,
+    Err,
     // more later
 }
 
@@ -22,7 +22,8 @@ impl fmt::Display for XdrError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             XdrError::Eof => write!(f, "helsadjfkasdf"),
-            XdrError::Foo => write!(f, "placeholasdkfjhasdfkjhasdfkjh"),
+            XdrError::Err => write!(f, "placeholasdkfjhasdfkjhasdfkjh"),
+            // generic error
         }
     }
 }
@@ -36,7 +37,7 @@ impl<'a> XdrDecoder<'a> {
         self.pos
     }
 
-    pub fn remaining(&self) -> &[u8] {
+    pub fn remaining(&self) -> &'a [u8] {
         &self.buf[self.pos..]
     }
 
@@ -47,7 +48,7 @@ impl<'a> XdrDecoder<'a> {
 
     fn need(&self, n: usize) -> Result<(), XdrError> {
         if self.pos + n > self.buf.len() {
-            Err(XdrError::Foo)
+            Err(XdrError::Eof)
         } else {
             Ok(())
         }
@@ -90,10 +91,10 @@ impl<'a> XdrDecoder<'a> {
         self.read_opaque_fixed(len)
     }
 
-    pub fn read_string(&mut self) -> Result<&'a str> {
+    pub fn read_string(&mut self) -> Result<&'a str, XdrError> {
         let len = self.read_u32()? as usize;
         let bytes = self.read_opaque_fixed(len)?;
-        std::str::from_utf8(bytes)
+        std::str::from_utf8(bytes).map_err(|_| XdrError::Err)
     }
 
     pub fn read_u32_array(&mut self) -> Result<Vec<u32>, XdrError> {

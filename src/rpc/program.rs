@@ -1,4 +1,4 @@
-use super::msg::OpaqueAuth;
+use crate::OpaqueAuth;
 #[derive(Debug)]
 pub enum DispatchResult {
     Success(Vec<u8>),
@@ -17,8 +17,8 @@ pub trait RpcProgram: Send + Sync {
         &self,
         vers: u32,
         proc: u32,
-        cred: &OpaqueAuth,
-        verf: &OpaqueAuth,
+        cred: &OpaqueAuth<'_>,
+        verf: &OpaqueAuth<'_>,
         args: &[u8],
     ) -> DispatchResult;
 }
@@ -30,24 +30,24 @@ pub const NFS_VERSION: u32 = 2;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
 pub enum stat {
-    NFS_OK=0,
-    NFSERR_PERM=1,
-    NFSERR_NOENT=2,
-    NFSERR_IO=5,
-    NFSERR_NXIO=6,
-    NFSERR_ACCES=13,
-    NFSERR_EXIST=17,
-    NFSERR_NODEV=19,
-    NFSERR_NOTDIR=20,
-    NFSERR_ISDIR=21,
-    NFSERR_FBIG=27,
-    NFSERR_NOSPC=28,
-    NFSERR_ROFS=30,
+    NFS_OK = 0,
+    NFSERR_PERM = 1,
+    NFSERR_NOENT = 2,
+    NFSERR_IO = 5,
+    NFSERR_NXIO = 6,
+    NFSERR_ACCES = 13,
+    NFSERR_EXIST = 17,
+    NFSERR_NODEV = 19,
+    NFSERR_NOTDIR = 20,
+    NFSERR_ISDIR = 21,
+    NFSERR_FBIG = 27,
+    NFSERR_NOSPC = 28,
+    NFSERR_ROFS = 30,
     NFSERR_NAMETOOLONG = 63,
-    NFSERR_NOTEMPTY= 66,
-    NFSERR_DQDOT=69,
-    NFSERR_STALE=70,
-    NFSERR_WFLUSH=99
+    NFSERR_NOTEMPTY = 66,
+    NFSERR_DQDOT = 69,
+    NFSERR_STALE = 70,
+    NFSERR_WFLUSH = 99,
 }
 
 // rfc 1094 2.3.2
@@ -59,7 +59,7 @@ pub enum ftype {
     NFDIR = 2,
     NFBLK = 3,
     NFCHR = 4,
-    NFLNK = 5
+    NFLNK = 5,
 }
 
 // this is RFC 1094 2.2 Server Procedures

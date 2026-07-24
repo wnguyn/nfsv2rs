@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::rpc::msg::Auth;
 use crate::rpc::program::{DispatchResult, RpcProgram};
-use crate::rpc::xdr::{get_string, XdrEncoder};
+use crate::rpc::xdr::{XdrDecoder, XdrEncoder};
+use crate::OpaqueAuth;
 
 pub const MOUNT_PROGRAM: u32 = 100005;
 pub const MOUNT_VERSION: u32 = 1;
@@ -53,8 +53,8 @@ impl RpcProgram for MountHandler {
         &self,
         vers: u32,
         proc: u32,
-        _cred: &Auth,
-        _verf: &Auth,
+        _cred: &OpaqueAuth<'_>,
+        _verf: &OpaqueAuth<'_>,
         args: &[u8],
     ) -> DispatchResult {
         if vers != MOUNT_VERSION {
@@ -68,8 +68,8 @@ impl RpcProgram for MountHandler {
         match proc {
             0 => DispatchResult::Success(Vec::new()),
             1 => {
-                let mut buf = args;
-                let path_str = match get_string(&mut buf) {
+                let mut d = XdrDecoder::new(args);
+                let path_str = match d.read_string() {
                     Ok(s) => s,
                     Err(_) => return DispatchResult::GarbageArgs,
                 };
