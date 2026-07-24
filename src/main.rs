@@ -47,21 +47,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut buf: [u8; 65536] = [0; 65536];
 
-    // single threaded so just unwrap like a LOSER!!!!
     let listener = Rc::new(Mutex::new(UdpSocket::bind("127.0.0.1:2049")?));
-    handle(cfg_ptr.clone(), &listener, buf);
-    eprintln!("socket crashed buddy");
+    handle(cfg_ptr.clone(), listener.clone(), buf);
+    eprintln!("ya stuff crashed man");
     Ok(())
 }
 
 fn handle(
     cfg: Rc<Config>,
-    socket: &UdpSocket,
+    socket: Rc<Mutex<UdpSocket>>,
     mut buf: [u8; 65536],
 ) -> Result<(), Box<dyn std::error::Error>> {
     loop {
-        let (amt, src) = socket.recv_from(&mut buf)?;
-        transport::process()
+        let (amt, src) = socket.lock().unwrap().recv_from(&mut buf)?;
     }
     Ok(())
 }
