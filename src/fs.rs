@@ -1,9 +1,7 @@
-use crate::rpc::program::{DispatchResult, RpcProgram};
+use crate::rpc::program::DispatchResult;
 use crate::rpc::xdr::{XdrDecoder, XdrEncoder};
 use crate::OpaqueAuth;
 use std::path::PathBuf;
-use std::rc::Rc;
-use std::sync::Arc;
 
 // RFC 1054
 pub const MOUNT_PROGRAM: u32 = 100005;
@@ -32,7 +30,7 @@ pub struct MountHandler {
 
 impl MountHandler {
     pub fn new(export_root: impl Into<PathBuf>) -> anyhow::Result<Self> {
-        let export_root = export_root.into();
+        let export_root: PathBuf = export_root.into();
         if !export_root.is_dir() {
             anyhow::bail!("export root is not a directory: {}", export_root.display());
         }
@@ -40,18 +38,8 @@ impl MountHandler {
             export_root: export_root.canonicalize()?,
         })
     }
-}
 
-impl RpcProgram for MountHandler {
-    fn program(&self) -> u32 {
-        MOUNT_PROGRAM
-    }
-
-    fn version_range(&self) -> (u32, u32) {
-        (MOUNT_VERSION, MOUNT_VERSION)
-    }
-
-    fn dispatch(
+    pub fn dispatch(
         &self,
         vers: u32,
         proc: u32,
@@ -106,6 +94,6 @@ impl RpcProgram for MountHandler {
     }
 }
 
-pub fn make_mount_handler(export_root: impl Into<PathBuf>) -> anyhow::Result<Arc<dyn RpcProgram>> {
-    Ok(Arc::new(MountHandler::new(export_root)?))
+pub fn make_mount_handler(export_root: impl Into<PathBuf>) -> anyhow::Result<MountHandler> {
+    MountHandler::new(export_root)
 }

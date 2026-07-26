@@ -1,4 +1,3 @@
-use crate::OpaqueAuth;
 #[derive(Debug)]
 pub enum DispatchResult {
     Success(Vec<u8>),
@@ -6,21 +5,6 @@ pub enum DispatchResult {
     ProgMismatch { low: u32, high: u32 },
     ProcUnavail,
     GarbageArgs,
-}
-
-pub trait RpcProgram: Send + Sync {
-    fn program(&self) -> u32;
-
-    fn version_range(&self) -> (u32, u32);
-
-    fn dispatch(
-        &self,
-        vers: u32,
-        proc: u32,
-        cred: &OpaqueAuth<'_>,
-        verf: &OpaqueAuth<'_>,
-        args: &[u8],
-    ) -> DispatchResult;
 }
 
 pub const NFS_PROGRAM: u32 = 100003;

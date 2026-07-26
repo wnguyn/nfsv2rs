@@ -2,13 +2,10 @@ mod fs;
 mod rpc;
 mod transport;
 
-use parking_lot::Mutex;
+use rpc::program::DispatchResult;
+use rpc::xdr::{XdrDecoder, XdrEncoder};
 use std::net::UdpSocket;
 use std::path::PathBuf;
-use std::rc::Rc;
-use std::sync::Arc;
-
-use rpc::xdr::XdrDecoder;
 
 /*
     Ancient Mesopotanian Bell Labs (it isnt actually bell labs)
@@ -129,29 +126,72 @@ impl<'a> RpcCall<'a> {
 }
 
 fn main() -> anyhow::Result<()> {
-    tracing::info!("NFSv2 server starting!!!!!, export root: {}", ROOT);
-    let cfg_ptr = Rc::new(Config::new(ROOT));
+    tracing_subscriber::fmt::init();
+    tracing::info!("NFSv2 server starting, export root: {}", ROOT);
 
-    // 2^16 maximum
-    let buf: [u8; 65536] = [0; 65536];
+    let socket = UdpSocket::bind("127.0.0.1:2049")?;
+    let mount_handler = fs::make_mount_handler(ROOT)?;
 
-    let listener = Rc::new(Mutex::new(UdpSocket::bind("127.0.0.1:2049")?));
-    handle(cfg_ptr.clone(), listener.clone(), buf)?;
-    Ok(())
+    handle(&socket, &mount_handler)
 }
 
-pub struct Message {}
+fn ver_call(program: &fs::MountHandler, call: &RpcCall<'_>) -> DispatchResult {
+    if call.prog != fs::MOUNT_PROGRAM {
+        return DispatchResult::ProgUnavail;
+    }
 
-fn handle(
-    _cfg: Rc<Config>,
-    socket: Rc<Mutex<UdpSocket>>,
-    mut buf: [u8; 65536],
-) -> anyhow::Result<()> {
-    let (amt, src) = socket.lock().recv_from(&mut buf)?;
-    let datagram = &buf[..amt]; // slice to datagram; past amt is stale zeros
-    loop {
-        if let Ok(call) = RpcCall::new(datagram) {
-            todo!();
+    if call.vers != fs::MOUNT_VERSION {
+        return DispatchResult::ProgMismatch {
+            low: fs::MOUNT_VERSION,
+            high: fs::MOUNT_VERSION,
+        };
+    }
+
+    program.dispatch(call.vers, call.proc_, &call.cred, &call.verf, call.args)
+}
+
+fn encode_reply(xid: u32, result: DispatchResult) -> Vec<u8> {
+    let mut encoder = XdrEncoder::new();
+
+    encoder.put_u32(xid);
+    encoder.put_u32(1);
+    encoder.put_u32(0);
+    encoder.put_u32(0);
+    encoder.put_u32(0);
+
+    match result {
+        DispatchResult::Success(payload) => {
+            encoder.put_u32(0);
+            encoder.put_raw(&payload);
         }
+        DispatchResult::ProgUnavail => encoder.put_u32(1),
+        DispatchResult::ProgMismatch { low, high } => {
+            encoder.put_u32(2);
+            encoder.put_u32(low);
+            encoder.put_u32(high);
+        }
+        DispatchResult::ProcUnavail => encoder.put_u32(3),
+        DispatchResult::GarbageArgs => encoder.put_u32(4),
+    }
+
+    encoder.into_bytes()
+}
+
+fn handle(socket: &UdpSocket, program: &fs::MountHandler) -> anyhow::Result<()> {
+    let mut buffer = [0u8; 65_536];
+
+    loop {
+        let (length, peer) = socket.recv_from(&mut buffer)?;
+        let call = match RpcCall::new(&buffer[..length]) {
+            Ok(call) => call,
+            Err(error) => {
+                eprintln!("I need to change this to be a much more elegant if let");
+                continue;
+            }
+        };
+
+        let result = ver_call(program, &call);
+        let reply = encode_reply(call.xid, result);
+        socket.send_to(&reply, peer)?;
     }
 }
