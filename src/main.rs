@@ -1,4 +1,5 @@
 mod fs;
+mod nfs;
 mod rpc;
 mod transport;
 
@@ -8,7 +9,7 @@ use std::net::UdpSocket;
 use std::path::PathBuf;
 
 /*
-    Ancient Mesopotanian Bell Labs (it isnt actually bell labs)
+    Ancient Mesopotanian SUn Microsystems
     Documentation
     https://datatracker.ietf.org/doc/html/rfc1014 //xdr
     https://datatracker.ietf.org/doc/html/rfc1057 //rpc
@@ -17,7 +18,7 @@ use std::path::PathBuf;
 
 const ROOT: &'static str = "/home/will/";
 
-// janky; use ENV variables ater
+// TODO janky; use ENV variables ater
 pub struct Config {
     raw_url: String,
     conf: PathBuf,
@@ -131,23 +132,23 @@ fn main() -> anyhow::Result<()> {
 
     let socket = UdpSocket::bind("127.0.0.1:2049")?;
     let mount_handler = fs::make_mount_handler(ROOT)?;
+    let nfs_handler = nfs::make_nfs_handler(ROOT)?;
 
-    handle(&socket, &mount_handler)
+    handle(&socket, &mount_handler, &nfs_handler)
 }
 
-fn ver_call(program: &fs::MountHandler, call: &RpcCall<'_>) -> DispatchResult {
-    if call.prog != fs::MOUNT_PROGRAM {
-        return DispatchResult::ProgUnavail;
+fn ver_call(
+    mount_handler: &fs::MountHandler,
+    nfs_handler: &nfs::NfsHandler,
+    call: &RpcCall<'_>,
+) -> DispatchResult {
+    if call.prog == fs::MOUNT_PROGRAM {
+        return mount_handler.dispatch(call.vers, call.proc_, &call.cred, &call.verf, call.args);
     }
-
-    if call.vers != fs::MOUNT_VERSION {
-        return DispatchResult::ProgMismatch {
-            low: fs::MOUNT_VERSION,
-            high: fs::MOUNT_VERSION,
-        };
+    if call.prog == rpc::program::NFS_PROGRAM {
+        return nfs_handler.dispatch(call.vers, call.proc_, &call.cred, &call.verf, call.args);
     }
-
-    program.dispatch(call.vers, call.proc_, &call.cred, &call.verf, call.args)
+    DispatchResult::ProgUnavail
 }
 
 fn encode_reply(xid: u32, result: DispatchResult) -> Vec<u8> {
@@ -177,20 +178,20 @@ fn encode_reply(xid: u32, result: DispatchResult) -> Vec<u8> {
     encoder.into_bytes()
 }
 
-fn handle(socket: &UdpSocket, program: &fs::MountHandler) -> anyhow::Result<()> {
+fn handle(
+    socket: &UdpSocket,
+    mount_handler: &fs::MountHandler,
+    nfs_handler: &nfs::NfsHandler,
+) -> anyhow::Result<()> {
     let mut buffer = [0u8; 65_536];
-
     loop {
         let (length, peer) = socket.recv_from(&mut buffer)?;
         let call = match RpcCall::new(&buffer[..length]) {
             Ok(call) => call,
-            Err(error) => {
-                eprintln!("I need to change this to be a much more elegant if let");
-                continue;
-            }
+            Err(_error) => continue,
         };
 
-        let result = ver_call(program, &call);
+        let result = ver_call(mount_handler, nfs_handler, &call);
         let reply = encode_reply(call.xid, result);
         socket.send_to(&reply, peer)?;
     }

@@ -1,5 +1,4 @@
-// actual udp network implementation
-
+/* deprecated
 use std::net::SocketAddr;
 
 use tokio::net::UdpSocket;
@@ -10,3 +9,4 @@ async fn reply(socket: &UdpSocket, dst: SocketAddr, msg: Vec<u8>) {
         tracing::debug!("send_to {dst} failed: {e}");
     }
 }
+*/
